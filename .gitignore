@@ -1,0 +1,12 @@
+.venv/
+venv/
+__pycache__/
+*.pyc
+.env
+local.sqlite3
+node_modules/
+.expo/
+dist/
+web-build/
+*.log
+.DS_Store
