@@ -26,7 +26,7 @@ function AppShell() {
   useEffect(() => {
     if (Platform.OS !== 'web') return undefined;
     const style = document.createElement('style');
-    style.textContent = 'html,body,#root{height:100%;margin:0;background:#0B1726;}';
+    style.textContent = 'html,body,#root{height:100%;margin:0;background:#E7E5F2;}';
     document.head.appendChild(style);
     return () => style.remove();
   }, []);
@@ -61,7 +61,7 @@ const styles = StyleSheet.create({
   stage: {
     flex: 1,
     minHeight: '100vh',
-    backgroundColor: '#0B1726',
+    backgroundColor: '#E7E5F2',
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -69,9 +69,9 @@ const styles = StyleSheet.create({
     width: 400,
     maxWidth: '100%',
     overflow: 'hidden',
-    backgroundColor: colors.paper,
-    borderRadius: 32,
-    borderWidth: 8,
-    borderColor: '#1C3658',
+    backgroundColor: colors.white,
+    borderRadius: 36,
+    borderWidth: 10,
+    borderColor: '#FFFFFF',
   },
 });

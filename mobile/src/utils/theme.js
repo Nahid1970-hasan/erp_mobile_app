@@ -15,6 +15,9 @@ export const colors = {
   warn: '#8A5A00',
   info: '#1D4E89',
   white: '#FFFFFF',
+  purple: '#5B2FE0',
+  purpleDeep: '#4318C4',
+  canvas: '#F6F7FB',
 };
 
 export const serif = Platform.select({ ios: 'Georgia', android: 'serif', default: 'Georgia' });

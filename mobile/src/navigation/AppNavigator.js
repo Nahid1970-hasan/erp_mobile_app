@@ -1,5 +1,5 @@
-import React, { useEffect } from 'react';
-import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
+import React, { useEffect, useState } from 'react';
+import { StyleSheet, Text, View } from 'react-native';
 import { NavigationContainer, DefaultTheme } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
@@ -7,7 +7,6 @@ import { Ionicons } from '@expo/vector-icons';
 import { useDispatch, useSelector } from 'react-redux';
 import { colors } from '../utils/theme';
 import { loadSession } from '../redux/authSlice';
-import { Mark } from '../components/ui';
 import LoginScreen from '../screens/LoginScreen';
 import HomeScreen from '../screens/HomeScreen';
 import OrdersScreen from '../screens/OrdersScreen';
@@ -41,10 +40,7 @@ const navTheme = {
 function SplashScreen() {
   return (
     <View style={styles.splash}>
-      <Mark size={84} />
-      <Text style={styles.brand}>Isho</Text>
-      <Text style={styles.splashSub}>Dekko Isho Group</Text>
-      <ActivityIndicator color={colors.brass} />
+      <Text style={styles.brand}>ISHO</Text>
     </View>
   );
 }
@@ -111,27 +107,29 @@ function MainTabs() {
     <Tab.Navigator
       screenOptions={({ route }) => ({
         headerShown: false,
-        tabBarActiveTintColor: colors.ink,
-        tabBarInactiveTintColor: colors.muted,
-        tabBarStyle: { backgroundColor: colors.card, borderTopColor: colors.line, height: 62, paddingBottom: 8, paddingTop: 6 },
-        tabBarLabelStyle: { fontSize: 11, fontWeight: '700' },
-        tabBarIcon: ({ color, size, focused }) => {
+        tabBarActiveTintColor: colors.purple,
+        tabBarInactiveTintColor: '#9AA0AE',
+        tabBarStyle: { backgroundColor: colors.white, borderTopColor: '#ECEEF4', height: 60, paddingBottom: 6, paddingTop: 4 },
+        tabBarItemStyle: { paddingHorizontal: 0 },
+        tabBarLabelStyle: { fontSize: 8, fontWeight: '700' },
+        tabBarIcon: ({ color, focused }) => {
           const icons = {
             HomeTab: focused ? 'grid' : 'grid-outline',
-            ApprovalsTab: focused ? 'checkmark-done' : 'checkmark-done-outline',
-            FloorTab: focused ? 'construct' : 'construct-outline',
+            SalesTab: focused ? 'pricetag' : 'pricetag-outline',
+            ApprovalsTab: focused ? 'cart' : 'cart-outline',
+            FloorTab: focused ? 'cube' : 'cube-outline',
             HrTab: focused ? 'people' : 'people-outline',
-            MoreTab: focused ? 'ellipsis-horizontal' : 'ellipsis-horizontal-outline',
+            MoreTab: focused ? 'document-text' : 'document-text-outline',
           };
-          return <Ionicons name={icons[route.name]} size={size} color={color} />;
+          return <Ionicons name={icons[route.name]} size={20} color={color} />;
         },
       })}
     >
-      <Tab.Screen name="HomeTab" component={HomeStackScreen} options={{ title: 'Home' }} />
-      {approvals ? <Tab.Screen name="ApprovalsTab" component={ApprovalStackScreen} options={{ title: 'Approvals' }} /> : null}
-      {floor ? <Tab.Screen name="FloorTab" component={FloorStackScreen} options={{ title: 'Floor' }} /> : null}
-      {hr ? <Tab.Screen name="HrTab" component={HrStackScreen} options={{ title: 'HR' }} /> : null}
-      <Tab.Screen name="MoreTab" component={MoreStackScreen} options={{ title: 'More' }} />
+      <Tab.Screen name="HomeTab" component={HomeStackScreen} options={{ title: 'DASHBOARD' }} />
+      {approvals ? <Tab.Screen name="ApprovalsTab" component={ApprovalStackScreen} options={{ title: 'PURCHASE' }} /> : null}
+      {floor ? <Tab.Screen name="FloorTab" component={FloorStackScreen} options={{ title: 'PRODUCTS' }} /> : null}
+      {hr ? <Tab.Screen name="HrTab" component={HrStackScreen} options={{ title: 'STAFF' }} /> : null}
+      <Tab.Screen name="MoreTab" component={MoreStackScreen} options={{ title: 'REPORTS' }} />
     </Tab.Navigator>
   );
 }
@@ -139,12 +137,15 @@ function MainTabs() {
 export default function AppNavigator() {
   const dispatch = useDispatch();
   const { ready, user } = useSelector((state) => state.auth);
+  const [holdSplash, setHoldSplash] = useState(true);
 
   useEffect(() => {
     dispatch(loadSession());
+    const timer = setTimeout(() => setHoldSplash(false), 1600);
+    return () => clearTimeout(timer);
   }, [dispatch]);
 
-  if (!ready) return <SplashScreen />;
+  if (!ready || holdSplash) return <SplashScreen />;
 
   return (
     <NavigationContainer theme={navTheme}>
@@ -156,7 +157,6 @@ export default function AppNavigator() {
 }
 
 const styles = StyleSheet.create({
-  splash: { flex: 1, backgroundColor: colors.ink, alignItems: 'center', justifyContent: 'center', gap: 10 },
-  brand: { color: colors.brass, fontSize: 36, fontWeight: '800', letterSpacing: 1 },
-  splashSub: { color: '#D9C49A', marginBottom: 12 },
+  splash: { flex: 1, backgroundColor: colors.purple, alignItems: 'center', justifyContent: 'center' },
+  brand: { color: colors.white, fontSize: 40, fontWeight: '800', letterSpacing: 3 },
 });

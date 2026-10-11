@@ -1,17 +1,31 @@
 import React from 'react';
 import { ActivityIndicator, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { StatusBar } from 'expo-status-bar';
+import { Ionicons } from '@expo/vector-icons';
 import { useSelector } from 'react-redux';
-import { colors, serif, ui } from '../utils/theme';
-import { count, greeting, label } from '../utils/format';
-import { ErpApi } from '../services/api';
+import { colors } from '../utils/theme';
+import { count } from '../utils/format';
+import { ErpApi, unwrap } from '../services/api';
 import { useScreenData } from '../hooks/useScreenData';
-import { Card, Mark, SectionTitle, StatusPill } from '../components/ui';
+
+const ORDER_COLORS = ['#F5A623', '#2D9CDB', '#EB5757', '#5C6570', '#27AE60', '#9B51E0'];
 
 export default function HomeScreen({ navigation }) {
   const user = useSelector((state) => state.auth.user);
-  const { data, loading, error, refreshing, reload } = useScreenData(() => ErpApi.dashboard());
+  const { data, loading, error, refreshing, reload } = useScreenData(async () => {
+    const board = await ErpApi.dashboard();
+    let orders = [];
+    try {
+      const orderResponse = await ErpApi.orders();
+      orders = unwrap(orderResponse.data).slice(0, 6);
+    } catch (orderError) {
+      orders = [];
+    }
+    return { data: { ...board.data, orders } };
+  });
   const kpis = data?.kpis;
+  const initial = (user?.first_name || user?.username || 'I').slice(0, 1).toUpperCase();
 
   function openApprovals() {
     const parent = navigation.getParent();
@@ -20,130 +34,169 @@ export default function HomeScreen({ navigation }) {
   }
 
   return (
-    <SafeAreaView style={ui.screen} edges={['top']}>
+    <View style={styles.root}>
+      <StatusBar style="light" />
+      <View style={styles.header}>
+        <SafeAreaView edges={['top']}>
+          <View style={styles.topRow}>
+            <Text style={styles.wordmark}>ISHO</Text>
+            <View style={styles.topActions}>
+              <Pressable style={styles.avatar} onPress={() => navigation.getParent()?.navigate('MoreTab')}>
+                <Text style={styles.avatarText}>{initial}</Text>
+              </Pressable>
+              <Pressable hitSlop={8} onPress={() => navigation.navigate('Notifications')}>
+                <Ionicons name="menu" size={26} color={colors.white} />
+              </Pressable>
+            </View>
+          </View>
+          <Text style={styles.company}>Dekko Isho</Text>
+          <Text style={styles.lead}>Let's get to start work</Text>
+          <Text style={styles.date}>{longDate()}</Text>
+        </SafeAreaView>
+      </View>
+
       <ScrollView
         contentContainerStyle={styles.body}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={reload} tintColor={colors.ink} />}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={reload} tintColor={colors.white} />}
       >
-        <View style={styles.hero}>
-          <View style={styles.heroText}>
-            <Text style={styles.kicker}>{greeting()}</Text>
-            <Text style={styles.name}>{user?.first_name || 'there'}</Text>
-            <Text style={styles.role}>{user?.designation} · {label(user?.role)}</Text>
-          </View>
-          <Mark size={52} />
-        </View>
-
-        {loading && !data ? <ActivityIndicator color={colors.ink} /> : null}
-        {error ? <Text style={ui.error}>{error}</Text> : null}
+        {loading && !data ? <ActivityIndicator color={colors.purple} style={styles.spinner} /> : null}
+        {error ? <Text style={styles.error}>{error}</Text> : null}
 
         {kpis ? (
-          <View style={styles.grid}>
-            <Kpi title="Output today" value={count(kpis.output_today)} hint={`Target ${count(kpis.target_today)}`} />
-            <Kpi title="Efficiency" value={`${kpis.efficiency}%`} hint={`${count(kpis.rejects_today)} rejects`} />
-            <Kpi title="At risk" value={count(kpis.at_risk_orders)} hint="Next 7 days" onPress={() => navigation.navigate('Orders')} warn={kpis.at_risk_orders > 0} />
-            <Kpi title="Approvals" value={count(kpis.pending_approvals)} hint="Waiting" onPress={openApprovals} />
+          <View style={styles.kpiRow}>
+            <Kpi color="#2EAE5B" icon="stats-chart" value={count(kpis.output_today)} label="Output today" />
+            <Kpi color="#E34B4B" icon="alert-circle" value={count(kpis.at_risk_orders)} label="At risk" onPress={() => navigation.navigate('Orders')} />
+            <Kpi color="#3B6FE0" icon="checkmark-done" value={count(kpis.pending_approvals)} label="Approvals" onPress={openApprovals} />
           </View>
         ) : null}
 
-        <SectionTitle>Lines today</SectionTitle>
-        {(data?.lines || []).map((line) => {
-          const ratio = line.target ? Math.min(line.output / line.target, 1) : 0;
-          return (
-            <Card key={line.id}>
-              <View style={styles.lineHead}>
-                <Text style={styles.lineName}>{line.name}</Text>
-                <Text style={styles.eff}>{line.efficiency}%</Text>
-              </View>
-              <Text style={ui.muted}>{count(line.output)} of {count(line.target)} · {line.rejects} rejects · {line.operators} operators</Text>
-              <View style={styles.track}>
-                <View style={[styles.fill, { width: `${ratio * 100}%`, backgroundColor: ratio < 0.9 ? colors.warn : colors.good }]} />
-              </View>
-            </Card>
-          );
-        })}
-
-        <SectionTitle>Orders</SectionTitle>
-        <View style={styles.wrap}>
-          {(data?.orders_by_status || []).map((row) => (
-            <Pressable key={row.status} onPress={() => navigation.navigate('Orders')}>
-              <Card style={styles.mini}>
-                <Text style={styles.miniCount}>{row.count}</Text>
-                <StatusPill status={row.status} />
-              </Card>
-            </Pressable>
-          ))}
+        <View style={styles.chartRow}>
+          <ChartCard title="Units" caption="Orders">
+            <BarChart values={(data?.orders || []).map((order) => order.qty)} color="#C4B5FD" />
+          </ChartCard>
+          <ChartCard title="Orders" caption="Status">
+            <BarChart values={(data?.orders_by_status || []).map((row) => row.count)} color="#34D399" />
+          </ChartCard>
         </View>
 
-        <SectionTitle>Shipments</SectionTitle>
-        <View style={styles.wrap}>
-          {(data?.shipments_by_status || []).map((row) => (
-            <Card key={row.status} style={styles.mini}>
-              <Text style={styles.miniCount}>{row.count}</Text>
-              <StatusPill status={row.status} />
-            </Card>
-          ))}
+        <View style={styles.sectionHead}>
+          <Ionicons name="grid" size={14} color={colors.purple} />
+          <Text style={styles.section}>ORDERS</Text>
         </View>
-
-        <View style={styles.rowTitle}>
-          <SectionTitle>Alerts</SectionTitle>
-          <Pressable onPress={() => navigation.navigate('Notifications')}>
-            <Text style={styles.link}>See all</Text>
+        {(data?.orders || []).map((order, index) => (
+          <Pressable key={order.id} style={[styles.order, { backgroundColor: ORDER_COLORS[index % ORDER_COLORS.length] }]} onPress={() => navigation.navigate('Orders')}>
+            <View style={styles.orderAvatar}>
+              <Text style={styles.orderAvatarText}>{(order.buyer_name || 'I').slice(0, 1)}</Text>
+            </View>
+            <View style={styles.orderText}>
+              <Text style={styles.orderName} numberOfLines={1}>{order.style_name}</Text>
+              <Text style={styles.orderMeta} numberOfLines={1}>{order.buyer_name}</Text>
+            </View>
+            <Text style={styles.orderQty}>{count(order.qty)}</Text>
           </Pressable>
-        </View>
-        {(data?.notifications || []).slice(0, 3).map((item) => (
-          <Card key={item.id}>
-            <Text style={styles.alertTitle}>{item.title}</Text>
-            <Text style={ui.muted}>{item.body}</Text>
-          </Card>
         ))}
-
-        <Pressable style={styles.ask} onPress={() => navigation.navigate('Assistant')}>
-          <Text style={styles.askKicker}>Ask Isho</Text>
-          <Text style={styles.askText}>Which orders are at risk of delaying shipment this week?</Text>
-        </Pressable>
       </ScrollView>
-    </SafeAreaView>
+    </View>
   );
 }
 
-function Kpi({ title, value, hint, onPress, warn }) {
+function Kpi({ color, icon, value, label, onPress }) {
   return (
-    <Pressable style={styles.kpiPress} onPress={onPress} disabled={!onPress}>
-      <Card style={[styles.kpi, warn && styles.kpiWarn]}>
-        <Text style={styles.kpiTitle}>{title}</Text>
-        <Text style={styles.kpiValue}>{value}</Text>
-        <Text style={ui.muted}>{hint}</Text>
-      </Card>
+    <Pressable style={[styles.kpi, { backgroundColor: color }]} onPress={onPress} disabled={!onPress}>
+      <Ionicons name={icon} size={16} color={colors.white} />
+      <Text style={styles.kpiValue} numberOfLines={1}>{value}</Text>
+      <Text style={styles.kpiLabel}>{label}</Text>
     </Pressable>
   );
 }
 
+function ChartCard({ title, caption, children }) {
+  return (
+    <View style={styles.chartCard}>
+      <View style={styles.chartHead}>
+        <Text style={styles.chartTitle}>{title}</Text>
+        <Text style={styles.chartCaption}>{caption}</Text>
+      </View>
+      {children}
+    </View>
+  );
+}
+
+function BarChart({ values, color }) {
+  const series = values.length ? values : [0];
+  const max = Math.max(1, ...series.map((value) => Number(value) || 0));
+  return (
+    <View style={styles.plot}>
+      {series.map((value, index) => (
+        <View key={index} style={styles.slot}>
+          <View style={[styles.bar, { height: Math.max(8, ((Number(value) || 0) / max) * 72), backgroundColor: color }]} />
+        </View>
+      ))}
+    </View>
+  );
+}
+
+function longDate() {
+  return new Date().toLocaleDateString('en-US', { month: 'long', day: '2-digit', year: 'numeric' });
+}
+
 const styles = StyleSheet.create({
-  body: { padding: 16, gap: 10, paddingBottom: 28 },
-  hero: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  heroText: { flex: 1, paddingRight: 12 },
-  kicker: { color: colors.brassDark, fontWeight: '800', letterSpacing: 0.4 },
-  name: { fontFamily: serif, fontSize: 34, color: colors.ink },
-  role: { color: colors.muted, marginTop: 2 },
-  grid: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', rowGap: 10 },
-  kpiPress: { width: '48.5%' },
-  kpi: { gap: 2 },
-  kpiWarn: { borderColor: '#E7C2BE' },
-  kpiTitle: { color: colors.muted, fontWeight: '700', fontSize: 12 },
-  kpiValue: { fontFamily: serif, fontSize: 28, color: colors.ink },
-  lineHead: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  lineName: { fontWeight: '800', color: colors.ink, fontSize: 16 },
-  eff: { fontWeight: '800', color: colors.ink },
-  track: { height: 8, borderRadius: 99, backgroundColor: '#EFE8DC', marginTop: 10, overflow: 'hidden' },
-  fill: { height: 8, borderRadius: 99 },
-  wrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  mini: { minWidth: 108, gap: 6 },
-  miniCount: { fontFamily: serif, fontSize: 24, color: colors.ink },
-  rowTitle: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end' },
-  link: { color: colors.brassDark, fontWeight: '800', marginBottom: 4 },
-  alertTitle: { fontWeight: '800', color: colors.ink, marginBottom: 4 },
-  ask: { backgroundColor: colors.ink, borderRadius: 18, padding: 16, marginTop: 6 },
-  askKicker: { color: colors.brass, fontWeight: '800', marginBottom: 4 },
-  askText: { color: colors.white, fontSize: 16, lineHeight: 22 },
+  root: { flex: 1, backgroundColor: colors.canvas },
+  header: {
+    backgroundColor: colors.purple,
+    paddingHorizontal: 18,
+    paddingBottom: 22,
+    borderBottomLeftRadius: 26,
+    borderBottomRightRadius: 26,
+  },
+  topRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingTop: 6 },
+  wordmark: { color: colors.white, fontSize: 18, fontWeight: '800', letterSpacing: 1 },
+  topActions: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  avatar: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: '#EDE9FE',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  avatarText: { color: colors.purpleDeep, fontWeight: '800' },
+  company: { color: colors.white, fontSize: 28, fontWeight: '700', marginTop: 18 },
+  lead: { color: 'rgba(255,255,255,0.88)', fontSize: 16, marginTop: 2 },
+  date: { color: 'rgba(255,255,255,0.75)', fontSize: 12, marginTop: 8 },
+  body: { padding: 14, paddingBottom: 28, gap: 12 },
+  spinner: { marginTop: 12 },
+  error: { color: '#E34B4B', fontSize: 14 },
+  kpiRow: { flexDirection: 'row', gap: 8 },
+  kpi: { flex: 1, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 12, minHeight: 86, justifyContent: 'space-between' },
+  kpiValue: { color: colors.white, fontSize: 18, fontWeight: '800', marginTop: 8 },
+  kpiLabel: { color: 'rgba(255,255,255,0.92)', fontSize: 11, marginTop: 2 },
+  chartRow: { flexDirection: 'row', gap: 10 },
+  chartCard: {
+    flex: 1,
+    backgroundColor: colors.white,
+    borderRadius: 12,
+    padding: 10,
+    minHeight: 140,
+    shadowColor: '#1F1B3A',
+    shadowOpacity: 0.06,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 3 },
+    elevation: 2,
+  },
+  chartHead: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 },
+  chartTitle: { color: '#6B7280', fontSize: 11, fontWeight: '800', letterSpacing: 0.4 },
+  chartCaption: { color: colors.purple, fontSize: 10, fontWeight: '700' },
+  plot: { height: 84, flexDirection: 'row', alignItems: 'flex-end', gap: 4 },
+  slot: { flex: 1, justifyContent: 'flex-end' },
+  bar: { borderRadius: 4, width: '100%' },
+  sectionHead: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 4 },
+  section: { color: '#4B5163', fontSize: 13, fontWeight: '800', letterSpacing: 0.6 },
+  order: { flexDirection: 'row', alignItems: 'center', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 10, gap: 10 },
+  orderAvatar: { width: 34, height: 34, borderRadius: 17, backgroundColor: 'rgba(255,255,255,0.28)', alignItems: 'center', justifyContent: 'center' },
+  orderAvatarText: { color: colors.white, fontWeight: '800' },
+  orderText: { flex: 1 },
+  orderName: { color: colors.white, fontWeight: '800', fontSize: 14 },
+  orderMeta: { color: 'rgba(255,255,255,0.85)', fontSize: 11, marginTop: 1 },
+  orderQty: { color: colors.white, fontWeight: '800', fontSize: 13 },
 });
